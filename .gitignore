@@ -1,0 +1,5 @@
+/bin/
+/build/
+/Galaxian.jar
+/galaxian-scores.bin
+*.tmp
