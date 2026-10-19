@@ -12,7 +12,8 @@ file. Saturn does not need to be installed and its files are not modified.
 - Animated green scouts, violet escorts and red commanders, using CC0 PNG art.
 - A 44-alien formation with a moving starfield behind it.
 - Curving dive attacks targeted at your ship; survivors rejoin the formation.
-- Enemy fire, three starting lives and brief protection after losing a life.
+- Enemy bullets travel straight down from a randomly selected living alien.
+- Three starting lives and brief protection after losing a life.
 - Progressively faster waves and more simultaneous divers.
 - Double points for hitting a diving alien.
 - An extra life at each 10,000-point milestone.
@@ -68,12 +69,15 @@ java -jar Galaxian.jar
 | Space | Fire; hold for repeated shots, with at most two on screen |
 | P / Escape | Pause or resume gameplay |
 | M | Mute/unmute sound |
+| T | Play a sound test; unmute and retry output if unavailable |
 | H | Show scores from title, or return from scores to title |
 | Escape on the score screen | Return to title |
 
 Switching to another window pauses an active game and releases held controls.
 Return to the game and press P or Escape to resume. Game controls are disabled
-while entering a high-score name. They work again when the next game starts.
+while entering a high-score name. Name entry is part of the game window, without
+a separate modal dialog. After saving, press Enter on the score table to start
+the next game. The Enter release used to submit a name cannot start it early.
 
 ## Scoring
 
@@ -84,8 +88,8 @@ while entering a high-score name. They work again when the next game starts.
 | Red commander | 150 | 300 |
 
 The score table retains the best ten results. When it is full, you must beat its
-lowest score. A newly entered tie appears below older equal scores. Cancel in
-the name dialog records the qualifying score as **PLAYER**. Names are limited
+lowest score. A newly entered tie appears below older equal scores. Enter a name in the in-window form and press Enter or click **SAVE SCORE**.
+Leaving the name blank records the qualifying score as **PLAYER**. Names are limited
 to 20 printable ASCII characters; delimiters used by the save format are cleaned.
 
 Scores are stored in **galaxian-scores.bin**, relative to the working directory.
@@ -218,8 +222,9 @@ Galaxian/
     Sprites.java
     HighScores.java
     SoundEffects.java
+    SaturnExplosion.java
   assets/aliens/
-  tests/GalaxianTests.java
+  tests/
   docs/
   bin/
 ```
@@ -247,3 +252,48 @@ Copyright © 2026 Charlie's Tenacity Ltd. All rights reserved for project code.
 The included third-party alien art is separately available under CC0.
 See `ASSET-CREDITS.md`. No original Galaxian ROMs, graphics or recordings are
 included; this is an independent inspired project.
+
+## Keyboard and Saturn explosion update
+
+High-score name entry now uses an in-window Swing form. Saving explicitly exits
+the entry state, clears pause/held-control flags and returns focus to the game.
+The regression tests submit names with both Enter and the button, then start a
+new game and verify movement and firing. No modal focus handoff is required.
+
+Explosions now use Charles Swires' original Saturn algorithm in
+`SaturnExplosion.java`: 200 particles, uniformly random bearing, speed selected
+from 0 to 5, `dx = speed * sin(bearing)` and `dy = speed * cos(bearing)`.
+Brightness fades from 255 to 0 in grayscale. Particles are drawn as 3 × 3 pixels
+instead of single pixels. Motion uses Saturn's normal 25 updates per second. Brightness now fades at
+50 levels per second (twice the original rate), independently of the monitor
+frame rate. The fade now lasts approximately 5.1 seconds; off-screen
+particles are naturally clipped by the game panel.
+
+## Audio output update
+
+Audio now tries the original Saturn 22,050 Hz mono format first, followed by
+stereo and 44,100/48,000 Hz fallbacks, using the default output and then other
+available Java mixers. Driver gain/volume controls are left at their established
+defaults. The game shows READY,
+STARTING, MUTED or UNAVAILABLE instead of claiming sound is on when opening failed.
+
+Press **T** on the title screen or during gameplay for an ascending test sound.
+It unmutes playback and retries an unavailable device. Device attempts and errors
+are written to **sound-diagnostics.txt** in the project folder. If it still stays
+silent, check Windows **Settings → System → Sound → Volume mixer**, including the
+Java application's volume/output, and supply `sound-diagnostics.txt` for diagnosis.
+A READY status means Java opened and started a line; it cannot verify that the
+Windows mixer, speakers or headphones are audible.
+
+## Controls between waves
+
+Movement and fire key presses/releases are tracked through the wave-clear delay,
+so holding Space or a movement key into the next wave continues to work. Keys
+released during the delay are also cleared correctly. Window focus is requested
+when the next wave starts without wiping held keys. Pausing, starting a new game,
+name entry and losing window focus still clear controls appropriately.
+
+The log also records this audio build's code location, sound request count,
+last requested effect, non-silent PCM frame count and bytes written. These
+counters distinguish a missing game event from an opened output receiving audio.
+They are refreshed approximately once a second while the output is active.

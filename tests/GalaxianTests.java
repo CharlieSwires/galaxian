@@ -32,6 +32,25 @@ public final class GalaxianTests {
         m.startGame();check(m.lives==3&&m.score==0&&!m.fire,"restart controls and lives");
         m.aliens.clear();m.update(0.01);check(m.state==GameModel.State.WAVE_CLEAR,"wave clear");m.update(2.2);check(m.wave==2&&m.aliens.size()==44,"next wave");
         m.addPoints(10000);check(m.lives==4,"bonus life");m.addPoints(10000);check(m.lives==5,"second bonus life");
+        // A single surviving enemy proves the origin; player position must not affect aim.
+        m=model();m.startGame();m.playerX=600;m.invulnerable=100;
+        GameModel.Alien shooter=m.aliens.get(0);m.aliens.clear();m.aliens.add(shooter);
+        for(int i=0;i<156;i++)m.update(1.0/120);
+        check(!m.shots.isEmpty(),"enemy fired");
+        for(GameModel.Shot shot:m.shots)if(shot.enemy) {
+            check(shot.vx==0 && shot.vy>0,"enemy bullet travels straight down");
+            double x=shot.x;m.update(0.01);check(shot.x==x,"enemy bullet has no horizontal drift");break;
+        }
+        // Both random choices and a fixed vertical trajectory are required.
+        m=model();m.startGame();m.invulnerable=100;java.util.Set<Double> origins=new java.util.HashSet<>();
+        java.util.Set<GameModel.Shot> seen=java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<GameModel.Shot,Boolean>());
+        for(int i=0;i<2400;i++) {
+            m.update(1.0/120);
+            for(GameModel.Shot shot:m.shots)if(shot.enemy&&seen.add(shot)) {
+                check(shot.vx==0 && shot.vy>0,"every random enemy shot is vertical");origins.add(shot.x);
+            }
+        }
+        check(origins.size()>1,"random enemies fire from different origins");
         // Run a deterministic simulation to catch list mutation and numeric problems.
         m=model();m.startGame();for(int i=0;i<20000;i++){
             m.fire=true;m.right=(i/150)%2==0;m.left=!m.right;m.invulnerable=1;m.update(1.0/120);

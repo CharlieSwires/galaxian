@@ -14,10 +14,15 @@ final class GamePanel extends JPanel {
     final GameModel game;
     final HighScores scores;
     private final Sprites sprites;
-    private final SoundEffects sounds;
+    private SoundEffects sounds;
     private final Timer timer;
     private final double[][] stars=new double[140][4];
+    private final java.util.Set<Integer> heldKeys=new java.util.HashSet<>();
     private boolean paused,muted,handlingGameOver,savingAllowed=true;
+    private boolean ignoreNextEnterRelease;
+    final JTextField scoreName = new JTextField("PLAYER", 20);
+    final JButton saveScore = new JButton("SAVE SCORE");
+    private final JPanel nameForm = new JPanel(new BorderLayout(0, 12));
     private long previous;
     private double elapsed;
     String notice="";
@@ -25,20 +30,40 @@ final class GamePanel extends JPanel {
     GamePanel(Path scoreFile,boolean audio,boolean animate)throws IOException {
         setPreferredSize(new Dimension(GameModel.WIDTH,GameModel.HEIGHT));
         setBackground(new Color(5,9,22));setFocusable(true);setDoubleBuffered(true);
+        setLayout(null);
+        nameForm.setBackground(new Color(9, 19, 35));
+        nameForm.setBorder(BorderFactory.createEmptyBorder(14, 18, 14, 18));
+        JLabel prompt = new JLabel("PILOT NAME (UP TO 20 ASCII CHARACTERS)");
+        prompt.setForeground(Color.WHITE);
+        prompt.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        nameForm.add(prompt, BorderLayout.NORTH);
+        nameForm.add(scoreName, BorderLayout.CENTER);
+        nameForm.add(saveScore, BorderLayout.SOUTH);
+        add(nameForm);nameForm.setVisible(false);
+        scoreName.addActionListener(event -> {
+            ignoreNextEnterRelease=true;
+            submitHighScore();
+        });
+        saveScore.addActionListener(event -> submitHighScore());
         sprites=new Sprites();scores=new HighScores(scoreFile);
         try{scores.load();}catch(IOException ex){savingAllowed=false;notice="Saved scores could not be loaded; file left unchanged.";}
         sounds=audio?new SoundEffects():null;
         game=new GameModel(new Random(),effect->{if(sounds!=null)sounds.play(effect);});
         Random r=new Random(1509);
         for(double[] star:stars){star[0]=r.nextDouble()*GameModel.WIDTH;star[1]=r.nextDouble()*GameModel.HEIGHT;star[2]=12+r.nextDouble()*55;star[3]=r.nextInt(3);}
-        bind("pressed A",()->game.left=true,true);bind("released A",()->game.left=false,true);
-        bind("pressed LEFT",()->game.left=true,true);bind("released LEFT",()->game.left=false,true);
-        bind("pressed D",()->game.right=true,true);bind("released D",()->game.right=false,true);
-        bind("pressed RIGHT",()->game.right=true,true);bind("released RIGHT",()->game.right=false,true);
-        bind("pressed SPACE",()->game.fire=true,true);bind("released SPACE",()->game.fire=false,true);
+        bindControl("A");bindControl("LEFT");bindControl("D");bindControl("RIGHT");bindControl("SPACE");
         bind("released M",()->{muted=!muted;if(sounds!=null)sounds.toggleMute();},false);
-        bind("released P",()->{if(game.state==GameModel.State.PLAYING){paused=!paused;game.resetControls();}},false);
+        bind("released T",()->{
+            if(sounds==null || "UNAVAILABLE".equals(sounds.status()) || "CLOSED".equals(sounds.status())) {
+                if(sounds!=null)sounds.close();
+                sounds=new SoundEffects();muted=false;
+            }
+            if(muted){muted=false;sounds.toggleMute();}
+            sounds.play(SoundEffects.Effect.LEVEL_UP);
+        },false);
+        bind("released P",()->{if(game.state==GameModel.State.PLAYING){paused=!paused;clearControls();}},false);
         bind("released ENTER",()->{
+            if(ignoreNextEnterRelease){ignoreNextEnterRelease=false;return;}
             if(game.state==GameModel.State.TITLE || game.state==GameModel.State.SCORES)start();
         },false);
         bind("released H",()->{
@@ -47,15 +72,28 @@ final class GamePanel extends JPanel {
         },false);
         bind("released ESCAPE",()->{
             if(game.state==GameModel.State.SCORES){game.state=GameModel.State.TITLE;}
-            else if(game.state==GameModel.State.PLAYING){paused=!paused;game.resetControls();}
+            else if(game.state==GameModel.State.PLAYING){paused=!paused;clearControls();}
         },false);
         previous=System.nanoTime();
         timer=new Timer(16,e->tick());timer.setCoalesce(true);
         if(animate)timer.start();
     }
+    private void bindControl(String key) {
+        int code=KeyStroke.getKeyStroke("pressed "+key).getKeyCode();
+        bind("pressed "+key,()->{heldKeys.add(code);applyControls();},true);
+        bind("released "+key,()->{heldKeys.remove(code);applyControls();},true);
+    }
+    private void applyControls() {
+        game.left=heldKeys.contains(KeyEvent.VK_A)||heldKeys.contains(KeyEvent.VK_LEFT);
+        game.right=heldKeys.contains(KeyEvent.VK_D)||heldKeys.contains(KeyEvent.VK_RIGHT);
+        game.fire=heldKeys.contains(KeyEvent.VK_SPACE);
+    }
+    private void clearControls() {heldKeys.clear();game.resetControls();}
+
     private void bind(String key,Runnable command,boolean gameplay) {
         AbstractAction action=new AbstractAction(){
-            @Override public boolean isEnabled(){return !handlingGameOver && (!gameplay || (game.state==GameModel.State.PLAYING && !paused));}
+            @Override public boolean isEnabled(){return !handlingGameOver && (!gameplay || ((game.state==GameModel.State.PLAYING
+                    || game.state==GameModel.State.WAVE_CLEAR) && (!paused || key.startsWith("released "))));}
             @Override public void actionPerformed(ActionEvent e){if(isEnabled())command.run();}
         };
         KeyStroke base=KeyStroke.getKeyStroke(key);
@@ -65,33 +103,62 @@ final class GamePanel extends JPanel {
         }
         getActionMap().put(key,action);
     }
-    void start(){paused=false;handlingGameOver=false;game.startGame();previous=System.nanoTime();requestFocusInWindow();}
-    void lostFocus(){game.resetControls();if(game.state==GameModel.State.PLAYING)paused=true;}
+    void start(){
+        nameForm.setVisible(false);paused=false;handlingGameOver=false;ignoreNextEnterRelease=false;
+        clearControls();game.startGame();previous=System.nanoTime();restoreGameFocus();
+    }
+    private void restoreGameFocus(){
+        SwingUtilities.invokeLater(() -> {
+            requestFocusInWindow();
+        });
+    }
+    void lostFocus(){clearControls();if(game.state==GameModel.State.PLAYING)paused=true;}
     void close(){timer.stop();if(sounds!=null)sounds.close();}
     private void tick(){
         long now=System.nanoTime();double dt=Math.min(0.05,(now-previous)/1e9);previous=now;
         elapsed+=dt;
         if(!paused && !handlingGameOver) {
             for(double[] star:stars){star[1]+=star[2]*dt;if(star[1]>GameModel.HEIGHT)star[1]-=GameModel.HEIGHT;}
-            game.update(dt);
+            advanceGame(dt);
             if(game.state==GameModel.State.GAME_OVER && game.stateTime>=1.7)finishGame();
         }
         repaint();
     }
-    private void finishGame(){
+    /** Uses the same held-key state across the wave-clear transition. */
+    void advanceGame(double dt) {
+        if(paused || handlingGameOver)return;
+        GameModel.State before=game.state;
+        if(before==GameModel.State.PLAYING || before==GameModel.State.WAVE_CLEAR)applyControls();
+        game.update(dt);
+        if(before==GameModel.State.WAVE_CLEAR && game.state==GameModel.State.PLAYING)restoreGameFocus();
+    }
+    void finishGame(){
         if(handlingGameOver)return;
-        handlingGameOver=true;game.resetControls();
-        // Dispatch after the timer event so the game-over frame can be painted first.
-        SwingUtilities.invokeLater(()->{
-            if(scores.qualifies(game.score)) {
-                String name=JOptionPane.showInputDialog(this,"Top ten! Score: "+game.score+"\nName (up to 20 ASCII characters):","High score",JOptionPane.PLAIN_MESSAGE);
-                // Cancel records an anonymous PLAYER entry, once for this game.
-                scores.add(game.score,name);
-                if(savingAllowed)try{scores.save();}catch(IOException ex){notice="Could not save scores: "+ex.getMessage();}
-            }
-            game.state=GameModel.State.SCORES;handlingGameOver=false;
-            previous=System.nanoTime();requestFocusInWindow();repaint();
-        });
+        handlingGameOver=true;paused=false;clearControls();
+        if(scores.qualifies(game.score)) {
+            nameForm.setVisible(true);revalidate();repaint();
+            SwingUtilities.invokeLater(() -> {
+                scoreName.requestFocusInWindow();scoreName.selectAll();
+            });
+        } else showScoreTable();
+    }
+    void submitHighScore(){
+        if(!handlingGameOver || !nameForm.isVisible())return;
+        scores.add(game.score,scoreName.getText());
+        if(savingAllowed)try{scores.save();}catch(IOException ex){notice="Could not save scores: "+ex.getMessage();}
+        showScoreTable();
+    }
+    private void showScoreTable(){
+        nameForm.setVisible(false);handlingGameOver=false;paused=false;
+        clearControls();game.state=GameModel.State.SCORES;
+        previous=System.nanoTime();revalidate();repaint();restoreGameFocus();
+    }
+    @Override public void doLayout(){
+        double scale=Math.min((double)getWidth()/GameModel.WIDTH,(double)getHeight()/GameModel.HEIGHT);
+        int x=(int)((getWidth()-GameModel.WIDTH*scale)/2+90*scale);
+        int y=(int)((getHeight()-GameModel.HEIGHT*scale)/2+470*scale);
+        nameForm.setBounds(x,y,(int)(460*scale),(int)(150*scale));
+        nameForm.doLayout();
     }
     @Override protected void paintComponent(Graphics graphics){
         super.paintComponent(graphics);
@@ -109,6 +176,9 @@ final class GamePanel extends JPanel {
             else if(game.state==GameModel.State.SCORES)drawScores(g);
             else drawGame(g);
             if(paused)overlay(g,"PAUSED","P / ESC TO RESUME");
+            if(sounds!=null && "UNAVAILABLE".equals(sounds.status())) {
+                text(g,"NO AUDIO - PRESS T TO RETRY / SEE sound-diagnostics.txt",11,GOLD,18,GameModel.HEIGHT-42);
+            }
             if(!notice.isEmpty()) {text(g,notice,18,MUTED,18,GameModel.HEIGHT-12);}
         } finally {g.dispose();}
     }
@@ -126,14 +196,14 @@ final class GamePanel extends JPanel {
         roundBox(g,58,566,524,62,new Color(14,42,56));
         centered(g,"ENTER  /  START GAME",22,CYAN,606);
         centered(g,"A / D OR ARROWS TO MOVE     SPACE TO FIRE",13,Color.WHITE,664);
-        centered(g,"P PAUSE     M SOUND     H HIGH SCORES",12,MUTED,693);
+        centered(g,"P PAUSE   M MUTE   T SOUND TEST   H SCORES",12,MUTED,693);
         centered(g,"GALAXIAN-INSPIRED  /  INDEPENDENT JAVA EDITION",10,MUTED,748);
     }
     private void drawGame(Graphics2D g){
         roundBox(g,18,18,604,66,new Color(9,19,35));
         text(g,"SCORE",11,MUTED,34,41);text(g,String.format("%06d",game.score),23,Color.WHITE,34,68);
         text(g,"BEST",11,MUTED,260,41);text(g,String.format("%06d",Math.max(scores.best(),game.score)),23,GOLD,260,68);
-        text(g,"WAVE "+game.wave,12,CYAN,490,44);text(g,muted?"SOUND OFF":"SOUND ON",10,MUTED,490,65);
+        text(g,"WAVE "+game.wave,12,CYAN,490,44);text(g,muted?"MUTED":sounds==null?"AUDIO OFF":sounds.status(),10,MUTED,490,65);
         for(GameModel.Alien a:game.aliens){
             AffineTransform old=g.getTransform();g.translate(a.x,a.y);
             if(a.diving && !a.returning)g.rotate(Math.sin(a.age*3)*0.55);
@@ -141,16 +211,13 @@ final class GamePanel extends JPanel {
         }
         for(GameModel.Shot s:game.shots){g.setColor(s.enemy?new Color(255,115,125):CYAN);g.fillRoundRect((int)s.x-2,(int)s.y-7,s.enemy?5:4,14,3,3);}
         if(game.state!=GameModel.State.GAME_OVER && (game.invulnerable<=0 || (int)(game.invulnerable*10)%2==0))ship(g,game.playerX,GameModel.HEIGHT-56,1);
-        for(GameModel.Burst b:game.bursts){
-            double t=b.age/0.55;g.setColor(new Color(255,193,92,(int)(255*(1-t))));
-            for(int i=0;i<10;i++){double angle=i*Math.PI/5;int x=(int)(b.x+Math.cos(angle)*t*44),y=(int)(b.y+Math.sin(angle)*t*44);g.fillOval(x-3,y-3,6,6);}
-        }
+        for(SaturnExplosion explosion:game.bursts)explosion.draw(g);
         g.setColor(new Color(35,53,78));g.drawLine(20,GameModel.HEIGHT-30,620,GameModel.HEIGHT-30);
         text(g,"LIVES "+game.lives,11,MUTED,25,GameModel.HEIGHT-12);
         text(g,"P PAUSE  /  M SOUND",10,MUTED,469,GameModel.HEIGHT-12);
         if(game.invulnerable>0 && game.state==GameModel.State.PLAYING)centered(g,"READY",15,CYAN,GameModel.HEIGHT-115);
         if(game.state==GameModel.State.WAVE_CLEAR)overlay(g,"WAVE CLEAR","NEXT WAVE INCOMING");
-        if(game.state==GameModel.State.GAME_OVER)overlay(g,"GAME OVER","FINAL SCORE  "+game.score);
+        if(game.state==GameModel.State.GAME_OVER)overlay(g,handlingGameOver?"TOP TEN!":"GAME OVER","FINAL SCORE  "+game.score);
     }
     private void drawScores(Graphics2D g){
         text(g,"FLIGHT RECORDS",12,CYAN,58,72);text(g,"HIGH SCORES",44,Color.WHITE,54,129);

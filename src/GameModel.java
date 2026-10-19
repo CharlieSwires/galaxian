@@ -21,13 +21,9 @@ final class GameModel {
         double x,y; final double vx,vy; final boolean enemy;
         Shot(double x,double y,double vx,double vy,boolean enemy) { this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.enemy=enemy; }
     }
-    static final class Burst {
-        final double x,y; double age;
-        Burst(double x,double y) { this.x=x;this.y=y; }
-    }
     final List<Alien> aliens = new ArrayList<>();
     final List<Shot> shots = new ArrayList<>();
-    final List<Burst> bursts = new ArrayList<>();
+    final List<SaturnExplosion> bursts = new ArrayList<>();
     private final Random random;
     private final Consumer<SoundEffects.Effect> sound;
     State state = State.TITLE;
@@ -56,7 +52,9 @@ final class GameModel {
     void update(double dt) {
         if(dt<=0) return;
         time+=dt;stateTime+=dt;
-        for(Iterator<Burst> i=bursts.iterator();i.hasNext();) { Burst b=i.next();b.age+=dt;if(b.age>0.55)i.remove(); }
+        for(Iterator<SaturnExplosion> i=bursts.iterator();i.hasNext();) {
+            SaturnExplosion explosion=i.next();explosion.update(dt);if(explosion.getCount()==0)i.remove();
+        }
         if(state==State.WAVE_CLEAR) { if(stateTime>=2.1){wave++;invulnerable=1.5;startWave();}return; }
         if(state!=State.PLAYING) return;
         invulnerable=Math.max(0,invulnerable-dt);
@@ -74,8 +72,7 @@ final class GameModel {
         }
         if(enemyDelay<=0 && !aliens.isEmpty() && shots.size()<70) {
             Alien a=aliens.get(random.nextInt(aliens.size()));
-            double aim=Math.max(-120,Math.min(120,(playerX-a.x)*0.5));
-            shots.add(new Shot(a.x,a.y+14,aim,210+Math.min(wave,20)*9,true));
+            shots.add(new Shot(a.x,a.y+14,0,210+Math.min(wave,20)*9,true));
             sound.accept(SoundEffects.Effect.ENEMY_SHOT);
             enemyDelay=Math.max(0.22,0.9-wave*0.045);
         }
@@ -92,7 +89,7 @@ final class GameModel {
                     Alien a=ai.next();
                     if(Math.abs(s.x-a.x)<18 && Math.abs(s.y-a.y)<17) {
                         ai.remove();addPoints(a.points()*(a.diving?2:1));
-                        bursts.add(new Burst(a.x,a.y));sound.accept(SoundEffects.Effect.EXPLOSION);remove=true;break;
+                        bursts.add(new SaturnExplosion(a.x,a.y,random));sound.accept(SoundEffects.Effect.EXPLOSION);remove=true;break;
                     }
                 }
             }
@@ -134,7 +131,7 @@ final class GameModel {
     }
     void hitPlayer() {
         if(invulnerable>0 || state!=State.PLAYING)return;
-        bursts.add(new Burst(playerX,HEIGHT-56));lives--;resetControls();
+        bursts.add(new SaturnExplosion(playerX,HEIGHT-56,random));lives--;resetControls();
         sound.accept(SoundEffects.Effect.PLAYER_HIT);
         if(lives<=0){state=State.GAME_OVER;stateTime=0;sound.accept(SoundEffects.Effect.GAME_OVER);}
         else {invulnerable=2.5;playerX=WIDTH/2.0;}

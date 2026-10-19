@@ -8,3 +8,11 @@ javac -encoding UTF-8 -source 8 -target 8 -Xlint:-options -cp bin -d build/test-
 separator=':'
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) separator=';' ;; esac
 java -Djava.awt.headless=true -cp "bin${separator}build/test-classes" GalaxianTests
+
+java -Djava.awt.headless=true -cp "bin${separator}build/test-classes" ScoreEntryAndExplosionTests
+
+java -Djava.awt.headless=true -cp "bin${separator}build/test-classes" AudioTests
+
+java -Djava.awt.headless=true -cp "bin${separator}build/test-classes" WaveTransitionTests
+
+java -Djava.awt.headless=true -cp "bin${separator}build/test-classes" MixerPlaybackTests
