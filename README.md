@@ -1,7 +1,5 @@
 # Galaxian — Charlie's Arcade
 
-<img src="Screenshot 2026-10-19 094129.png" width="500" height="500" alt="Paused Screen" title="Navigation Room"/>
-
 A standalone, Galaxian-inspired Java Swing arcade game developed from Charles
 Swires' Saturn project. Defend your ship against a coloured alien fleet that
 leaves formation, loops into diving attacks and returns for another pass.
@@ -14,7 +12,7 @@ file. Saturn does not need to be installed and its files are not modified.
 - Animated green scouts, violet escorts and red commanders, using CC0 PNG art.
 - A 44-alien formation with a moving starfield behind it.
 - Curving dive attacks targeted at your ship; survivors rejoin the formation.
-- Enemy bullets travel straight down from a randomly selected living alien.
+- Only descending diving attackers fire, aiming once at the player with a small random spread.
 - Three starting lives and brief protection after losing a life.
 - Progressively faster waves and more simultaneous divers.
 - Double points for hitting a diving alien.
@@ -37,7 +35,6 @@ sprite rips. There are no shields or mystery saucer in this game.
 
    ```bash
    git clone https://github.com/CharlieSwires/galaxian.git
-   
    cd galaxian
    ```
 
@@ -311,3 +308,17 @@ The log also records this audio build's code location, sound request count,
 last requested effect, non-silent PCM frame count and bytes written. These
 counters distinguish a missing game event from an opened output receiving audio.
 They are refreshed approximately once a second while the output is active.
+
+## Aimed fire from diving attackers
+
+Only living aliens in the descending part of an attack can shoot. Aliens resting
+in formation, performing the opening loop, returning to formation, or already
+below the safe firing height do not shoot. A random eligible attacker is selected
+at the existing enemy firing cadence; if none is eligible, firing waits.
+
+Each bullet aims towards the player's position at the moment it is fired, with
+up to five degrees of random angular spread. The angle is limited to keep shots
+travelling downwards. Velocity is fixed once spawned: moving your ship afterwards
+does not steer the shot, and destroying the shooter does not remove its bullets.
+This follows the described arcade-style behaviour; it is not a cycle-exact port
+of the original Z80 firing calculations.

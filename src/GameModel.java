@@ -70,13 +70,10 @@ final class GameModel {
             if(!ready.isEmpty() && diving<Math.min(6,1+wave)) beginDive(ready.get(random.nextInt(ready.size())));
             diveDelay=Math.max(0.38,1.7-wave*0.12)*(0.8+random.nextDouble()*0.4);
         }
-        if(enemyDelay<=0 && !aliens.isEmpty() && shots.size()<70) {
-            Alien a=aliens.get(random.nextInt(aliens.size()));
-            shots.add(new Shot(a.x,a.y+14,0,210+Math.min(wave,20)*9,true));
-            sound.accept(SoundEffects.Effect.ENEMY_SHOT);
+        for(Alien a:aliens) updateAlien(a,dt);
+        if(enemyDelay<=0 && shots.size()<70 && fireEnemyShot()) {
             enemyDelay=Math.max(0.22,0.9-wave*0.045);
         }
-        for(Alien a:aliens) updateAlien(a,dt);
         for(Shot s:shots){s.x+=s.vx*dt;s.y+=s.vy*dt;}
         for(Iterator<Shot> i=shots.iterator();i.hasNext();) {
             Shot s=i.next();boolean remove=s.y < -30 || s.y>HEIGHT+30 || s.x < -30 || s.x>WIDTH+30;
@@ -103,6 +100,29 @@ final class GameModel {
             sound.accept(SoundEffects.Effect.LEVEL_UP);
         }
     }
+    static final double AIM_SPREAD_RADIANS = Math.toRadians(5);
+
+    /** Fire from a living descending attacker, aiming once with a small random spread. */
+    boolean fireEnemyShot() {
+        List<Alien> attackers=new ArrayList<>();
+        double playerY=HEIGHT-56;
+        for(Alien alien:aliens) {
+            if(alien.diving && !alien.returning && alien.age>=0.75
+                    && alien.y+14<playerY-24)attackers.add(alien);
+        }
+        if(attackers.isEmpty())return false;
+        Alien shooter=attackers.get(random.nextInt(attackers.size()));
+        double originX=shooter.x,originY=shooter.y+14;
+        double angle=Math.atan2(playerX-originX,playerY-originY);
+        angle+=(random.nextDouble()*2-1)*AIM_SPREAD_RADIANS;
+        // Keep shots travelling down even near the sides/bottom of the screen.
+        angle=Math.max(-1.1,Math.min(1.1,angle));
+        double speed=210+Math.min(wave,20)*9;
+        shots.add(new Shot(originX,originY,Math.sin(angle)*speed,Math.cos(angle)*speed,true));
+        sound.accept(SoundEffects.Effect.ENEMY_SHOT);
+        return true;
+    }
+
     private long playerShotCount(){return shots.stream().filter(s->!s.enemy).count();}
     void beginDive(Alien a) {
         a.diving=true;a.returning=false;a.age=0;a.originX=a.x;a.originY=a.y;

@@ -19,3 +19,6 @@ java -Djava.awt.headless=true -cp "bin;build\test-classes" WaveTransitionTests
 
 if errorlevel 1 exit /b 1
 java -Djava.awt.headless=true -cp "bin;build\test-classes" MixerPlaybackTests
+
+if errorlevel 1 exit /b 1
+java -Djava.awt.headless=true -cp "bin;build\test-classes" AimedShotTests

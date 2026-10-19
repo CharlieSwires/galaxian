@@ -16,3 +16,5 @@ java -Djava.awt.headless=true -cp "bin${separator}build/test-classes" AudioTests
 java -Djava.awt.headless=true -cp "bin${separator}build/test-classes" WaveTransitionTests
 
 java -Djava.awt.headless=true -cp "bin${separator}build/test-classes" MixerPlaybackTests
+
+java -Djava.awt.headless=true -cp "bin${separator}build/test-classes" AimedShotTests
