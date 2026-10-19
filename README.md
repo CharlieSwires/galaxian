@@ -31,10 +31,22 @@ sprite rips. There are no shields or mystery saucer in this game.
 
 ## Quick start on Windows
 
-1. Extract **Galaxian.zip** into a location of your choice.
-2. Open the extracted **Galaxian** folder.
-3. Double-click **run.bat**.
-4. Press **Enter** at the title screen.
+1. Download and install [Git for Windows](https://git-scm.com/downloads/win),
+   including **Git Bash**.
+2. Open **Git Bash** in the folder where you want to keep the project and run:
+
+   ```bash
+   git clone https://github.com/CharlieSwires/galaxian.git
+   
+   cd galaxian
+   ```
+
+3. Open the cloned **galaxian** folder in File Explorer.
+4. Double-click **run.bat**.
+5. Press **Enter** at the title screen.
+
+If `Galaxian.jar` is not present, install an OpenJDK **JDK** and run **build.bat**
+once before **run.bat**. See **Build from source** below.
 
 Java 8 or later must be installed and available on PATH. The included
 `Galaxian.jar` is already compiled for Java 8, so no build is required to play.

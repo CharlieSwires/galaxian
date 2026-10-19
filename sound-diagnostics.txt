@@ -1,9 +1,9 @@
 Galaxian audio build: mono-first / playback counters
 Code location: file:/C:/Users/charl/eclipse-workspace/Galaxian/Galaxian/Galaxian.jar
 Opened system default: PCM_SIGNED 22050.0 Hz, 16 bit, mono, 2 bytes/frame, little-endian
-Sound requests: 3
-Last requested effect: ENEMY_SHOT
-Non-silent PCM frames: 7881
-Bytes written: 8505344
+Sound requests: 219
+Last requested effect: GAME_OVER
+Non-silent PCM frames: 542655
+Bytes written: 4498394
 Muted: false
-Status: READY
+Status: CLOSED
