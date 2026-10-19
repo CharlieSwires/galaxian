@@ -1,5 +1,7 @@
 # Galaxian — Charlie's Arcade
 
+<img src="Screenshot 2026-10-19 094129.png" width="500" height="500" alt="PlayScreen" title="Play Screen/>
+
 A standalone, Galaxian-inspired Java Swing arcade game developed from Charles
 Swires' Saturn project. Defend your ship against a coloured alien fleet that
 leaves formation, loops into diving attacks and returns for another pass.
